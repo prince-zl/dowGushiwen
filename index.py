@@ -6,6 +6,19 @@ import json
 import re
 from urllib.parse import urljoin
 
+# Word文档相关导入
+try:
+    from docx import Document
+    from docx.shared import Inches, Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    DOCX_AVAILABLE = True
+    print("✅ python-docx 已安装，将自动生成Word文档")
+except ImportError:
+    DOCX_AVAILABLE = False
+    print("⚠️  python-docx 未安装，请运行: pip install python-docx")
+    print("   将只生成TXT和JSON文件")
+
 class JigongCrawler:
     def __init__(self):
         self.base_url = "https://m.gushiwen.cn"  # 使用移动版，更稳定
@@ -260,7 +273,8 @@ class JigongCrawler:
     
     def crawl_book(self, delay=3, test_mode=False):
         """爬取整本书"""
-        print("🚀 开始爬取《济公全传》...")
+        mode_text = "测试模式（前3章）" if test_mode else "完整模式（所有章节）"
+        print(f"🚀 开始爬取《济公全传》 - {mode_text}")
         print("=" * 60)
         
         # 获取章节列表
@@ -292,6 +306,8 @@ class JigongCrawler:
         if test_mode:
             chapters = chapters[:3]
             print(f"🧪 测试模式：只爬取前 {len(chapters)} 章")
+        else:
+            print(f"🚀 完整模式：准备爬取所有 {len(chapters)} 个章节")
         
         print(f"📚 找到 {len(chapters)} 个章节，开始爬取...")
         print("-" * 60)
@@ -325,7 +341,10 @@ class JigongCrawler:
             else:
                 print(f"           ❌ 失败或内容不完整")
             
-            time.sleep(delay)
+            # 添加延迟，避免请求过快
+            if i < len(chapters):  # 最后一章不需要延迟
+                print(f"           ⏳ 等待 {delay} 秒...")
+                time.sleep(delay)
         
         # 保存结果
         print("-" * 60)
@@ -336,11 +355,19 @@ class JigongCrawler:
         
         # 统计段落信息
         total_paragraphs = sum(ch.get('paragraph_count', 0) for ch in chapters_data)
+        total_chars = sum(ch.get('char_count', 0) for ch in chapters_data)
         print(f"   总段落数: {total_paragraphs}")
+        print(f"   总字符数: {total_chars:,}")
         
         if success_count > 0:
+            # 保存所有格式
             self.save_to_file(chapters_data)
             self.save_to_json(chapters_data)
+            
+            # 🎯 重点：直接生成Word文档
+            if DOCX_AVAILABLE:
+                self.save_to_word(chapters_data)
+            
             print(f"\n🎉 爬取完成！获得 {success_count} 个有效章节，共 {total_paragraphs} 个段落")
         else:
             print("❌ 没有成功获取任何章节内容")
@@ -348,6 +375,7 @@ class JigongCrawler:
             print("   1. 检查网络连接")
             print("   2. 稍后重试（可能遇到频率限制）")
             print("   3. 尝试使用VPN或更换IP")
+            print("   4. 检查目标网站是否正常访问")
     
     def save_to_file(self, chapters_data, filename="济公全传.txt"):
         """保存内容到文件 - 保持段落格式"""
@@ -374,16 +402,14 @@ class JigongCrawler:
                     else:
                         f.write("[此章节内容获取失败]")
                     
-                    f.write(f"\n\n\n\n")
-                    # f.write(f"\n来源: {chapter['url']}")
-                    # f.write("\n\n" + "=" * 50 + "\n\n")
+                    f.write(f"\n\n\n")
                 
-                f.write(f"\n总计: {len(chapters_data)} 章, {total_chars} 字, {total_paragraphs} 段落\n")
+                f.write(f"\n\n总计: {len(chapters_data)} 章, {total_chars:,} 字, {total_paragraphs} 段落\n")
             
-            print(f"✅ 内容已保存到: {filename} (保持原始段落格式)")
+            print(f"✅ TXT文件已保存: {filename}")
             
         except Exception as e:
-            print(f"❌ 保存文件失败: {e}")
+            print(f"❌ 保存TXT文件失败: {e}")
     
     def save_to_json(self, chapters_data, filename="济公全传.json"):
         """保存为JSON格式"""
@@ -403,62 +429,212 @@ class JigongCrawler:
             with open(filename, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             
-            print(f"✅ JSON数据已保存到: {filename}")
+            print(f"✅ JSON文件已保存: {filename}")
             
         except Exception as e:
             print(f"❌ 保存JSON失败: {e}")
+    
+    def save_to_word(self, chapters_data, filename="济公全传.docx"):
+        """直接保存为Word文档 - 格式化章节标题（加粗）"""
+        try:
+            print("📝 正在生成Word文档...")
+            
+            # 创建新的Word文档
+            document = Document()
+            
+            # 设置中文字体
+            document.styles['Normal'].font.name = '宋体'
+            document.styles['Normal']._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+            document.styles['Normal'].font.size = Pt(12)
+            
+            # 添加文档标题
+            title = document.add_heading('济公全传', 0)
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            title.runs[0].font.name = '黑体'
+            title.runs[0]._element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+            title.runs[0].font.size = Pt(22)
+            title.runs[0].bold = True
+            
+            # 添加作者信息
+            author_para = document.add_paragraph()
+            author_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            author_run = author_para.add_run('作者：郭小亭（清代）')
+            author_run.font.name = '楷体'
+            author_run._element.rPr.rFonts.set(qn('w:eastAsia'), '楷体')
+            author_run.font.size = Pt(14)
+            author_run.italic = True
+            
+            # 添加爬取信息
+            info_para = document.add_paragraph()
+            info_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            info_run = info_para.add_run(f'爬取时间：{time.strftime("%Y-%m-%d %H:%M:%S")}')
+            info_run.font.name = '仿宋'
+            info_run._element.rPr.rFonts.set(qn('w:eastAsia'), '仿宋')
+            info_run.font.size = Pt(10)
+            
+            # 添加分割线
+            document.add_paragraph('─' * 50).alignment = WD_ALIGN_PARAGRAPH.CENTER
+            document.add_paragraph()  # 空行
+            
+            # 添加统计信息
+            stats_heading = document.add_heading('书籍统计', 1)
+            stats_heading.runs[0].bold = True
+            stats_heading.runs[0].font.name = '黑体'
+            stats_heading.runs[0]._element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+            
+            total_chapters = len(chapters_data)
+            success_chapters = len([ch for ch in chapters_data if ch.get('success', False)])
+            total_chars = sum(ch.get('char_count', 0) for ch in chapters_data)
+            total_paragraphs = sum(ch.get('paragraph_count', 0) for ch in chapters_data)
+            
+            stats_text = f"""总章节数：{total_chapters}
+成功章节：{success_chapters}
+总字符数：{total_chars:,}
+总段落数：{total_paragraphs}
+格式说明：严格按照原网站p标签分段"""
+            
+            stats_para = document.add_paragraph(stats_text)
+            stats_para.runs[0].font.size = Pt(11)
+            stats_para.runs[0].font.name = '仿宋'
+            stats_para.runs[0]._element.rPr.rFonts.set(qn('w:eastAsia'), '仿宋')
+            
+            document.add_paragraph()  # 空行
+            
+            # 添加章节内容
+            success_count = 0
+            
+            for i, chapter in enumerate(chapters_data, 1):
+                if not chapter.get('success', False) or not chapter.get('content'):
+                    continue
+                    
+                success_count += 1
+                print(f"📄 正在处理第 {success_count} 章: {chapter['title']}")
+                
+                # 🎯 重点：章节标题加粗
+                chapter_heading = document.add_heading(chapter['title'], 1)
+                chapter_heading.runs[0].bold = True  # 确保标题加粗
+                chapter_heading.runs[0].font.name = '黑体'
+                chapter_heading.runs[0]._element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+                chapter_heading.runs[0].font.size = Pt(16)
+                
+                # 章节内容 - 按段落分割
+                content = chapter['content']
+                paragraphs = content.split('\n\n')  # 按双换行分段
+                
+                for para_text in paragraphs:
+                    para_text = para_text.strip()
+                    if para_text:
+                        # 创建段落
+                        para = document.add_paragraph()
+                        para_run = para.add_run(para_text)
+                        para_run.font.name = '宋体'
+                        para_run._element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+                        para_run.font.size = Pt(12)
+                        
+                        # 设置段落格式
+                        para.paragraph_format.first_line_indent = Inches(0.5)  # 首行缩进
+                        para.paragraph_format.space_after = Pt(6)  # 段后间距
+                        para.paragraph_format.line_spacing = 1.5  # 行距
+                
+                # 章节之间添加分页符（除了最后一章）
+                if success_count < success_chapters:
+                    document.add_page_break()
+            
+            # 保存Word文档
+            document.save(filename)
+            print(f"✅ Word文档已保存: {filename}")
+            print(f"📊 成功处理 {success_count} 个章节，标题已加粗")
+            
+        except Exception as e:
+            print(f"❌ 保存Word文档失败: {e}")
+            print("💡 可能是python-docx库问题，请检查安装：pip install python-docx")
 
 def main():
-    """主函数"""
+    """主函数 - 包含完整的用户选择界面"""
     print("=" * 60)
     print("        济公全传 - 专业版爬虫 v2.1")
-    print("        (严格按p标签分段版本)")
+    print("        (自动生成Word文档版)")
     print("=" * 60)
     print("🎯 针对古诗文网优化，严格按p标签分段")
+    print("📝 爬取完成后自动生成格式化Word文档")
     print("⚠️  请遵守网站使用条款，仅用于学习研究")
     print("=" * 60)
     
     crawler = JigongCrawler()
     
     # 询问用户想要的模式
-    print("请选择爬取模式:")
-    print("1. 🧪 测试模式（只爬取3章，快速验证分段效果）")
-    print("2. 🚀 完整模式（爬取所有章节，严格分段）")
-    print("3. 📊 先测试再决定（推荐）")
-    
     while True:
-        choice = input("\n请输入选择 (1/2/3): ").strip()
+        print("\n请选择爬取模式:")
+        print("1. 🧪 测试模式（只爬取前3章，快速验证效果）")
+        print("2. 🚀 完整模式（爬取所有章节，生成完整Word文档）")
+        print("3. 📊 先测试再决定（推荐）")
+        print("4. ❌ 退出程序")
         
-        if choice == "1":
-            print("\n🧪 开始测试模式...")
-            crawler.crawl_book(delay=2, test_mode=True)
-            break
+        try:
+            choice = input("\n请输入选择 (1/2/3/4): ").strip()
             
-        elif choice == "2":
-            print("\n🚀 开始完整爬取...")
-            crawler.crawl_book(delay=3, test_mode=False)
-            break
-            
-        elif choice == "3":
-            print("\n🧪 开始测试模式（前3章）...")
-            crawler.crawl_book(delay=2, test_mode=True)
-            
-            print("\n" + "=" * 40)
-            continue_choice = input("测试完成！是否继续爬取完整版本？(y/n): ").strip().lower()
-            
-            if continue_choice in ['y', 'yes', '是']:
-                print("\n🚀 开始完整爬取...")
-                crawler.crawl_book(delay=3, test_mode=False)
+            if choice == "1":
+                print("\n" + "="*50)
+                print("🧪 已选择：测试模式")
+                print("📝 将爬取前3章并生成测试Word文档...")
+                crawler.crawl_book(delay=2, test_mode=True)
+                break
+                
+            elif choice == "2":
+                print("\n" + "="*50)
+                print("🚀 已选择：完整模式")
+                print("📚 将爬取所有章节并生成完整Word文档...")
+                
+                # 二次确认
+                confirm = input("⚠️  完整爬取可能需要较长时间，确认继续？(y/n): ").strip().lower()
+                if confirm in ['y', 'yes', '是', '确认']:
+                    crawler.crawl_book(delay=3, test_mode=False)
+                    break
+                else:
+                    print("❌ 已取消完整爬取，返回主菜单")
+                    continue
+                
+            elif choice == "3":
+                print("\n" + "="*50)
+                print("📊 推荐模式：先测试再决定")
+                print("🧪 首先进行测试模式（前3章）...")
+                crawler.crawl_book(delay=2, test_mode=True)
+                
+                print("\n" + "="*40)
+                print("📋 测试阶段完成！")
+                continue_choice = input("✨ 效果满意吗？是否继续爬取完整版本？(y/n): ").strip().lower()
+                
+                if continue_choice in ['y', 'yes', '是', '满意']:
+                    print("\n🚀 开始完整爬取并生成完整Word文档...")
+                    crawler.crawl_book(delay=3, test_mode=False)
+                else:
+                    print("👋 测试完成，感谢使用！")
+                break
+                
+            elif choice == "4":
+                print("👋 感谢使用济公全传爬虫！再见！")
+                break
+                
             else:
-                print("👋 感谢使用！")
+                print("❌ 无效选择，请输入 1、2、3 或 4")
+                
+        except KeyboardInterrupt:
+            print("\n\n👋 程序被用户中断，再见！")
             break
-            
-        else:
-            print("❌ 无效选择，请输入 1、2 或 3")
+        except Exception as e:
+            print(f"❌ 输入处理错误: {e}")
+            print("请重新选择...")
+            continue
     
-    print(f"\n📁 文件保存在当前目录:")
-    print(f"   📄 济公全传.txt - 严格按段落格式的文本")
-    print(f"   📋 济公全传.json - 包含段落统计的数据格式")
+    print(f"\n📁 生成的文件:")
+    print(f"   📄 济公全传.txt - 纯文本格式")
+    print(f"   📋 济公全传.json - 数据格式（包含元数据）")
+    if DOCX_AVAILABLE:
+        print(f"   📝 济公全传.docx - Word文档（标题加粗，格式化）")
+    else:
+        print(f"   ⚠️  Word文档未生成（需要安装：pip install python-docx）")
+    
+    print(f"\n🎉 所有文件已保存在当前目录！")
 
 if __name__ == "__main__":
     main()
