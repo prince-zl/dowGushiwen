@@ -19,9 +19,8 @@
 trusted-host = pypi.org
              files.pythonhosted.org
 ```
-
-### 3. 运行项目
-
+#### 使用方式
+* 文章列表的链接放到links.txt文件启动后就会自动下载
 #### 控制台运行
 * python index.py
 
