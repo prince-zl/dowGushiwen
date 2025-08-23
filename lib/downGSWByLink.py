@@ -145,7 +145,7 @@ class down:
                 config.setLog("❌ 未找到有效章节链接")
                 return None
             # articles = articles[20:21] #测试
-            # articles = articles[:3] #测试
+            # articles = articles[:1] #测试
             return articles
 
         except Exception as e:
@@ -236,11 +236,17 @@ class down:
                 p_format.line_spacing = 1.5  # 行距 1.5 倍
                 p_format.first_line_indent = Cm(0.74)  # 首行缩进 2 字符
 
-                run = p.add_run(para.strip())
-                run.font.size = Pt(12)
+                run = p.add_run(para['content'].strip())
                 run.font.name = "楷体"
                 run.font.color.rgb = RGBColor(0, 0, 0)
-                run._element.rPr.rFonts.set(qn("w:eastAsia"), "楷体")
+                run._element.rPr.rFonts.set(qn("w:eastAsia"), "楷体") 
+                if para['type'] == 'text':
+                    run.font.size = Pt(12)
+                else:
+                    run.font.size = Pt(16)
+                    run.bold = True
+
+                
 
             # 每章后加分页
             if idx < len(chapters_data) - 1:  # idx 从 0 开始，最后一章的 idx = len-1

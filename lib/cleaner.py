@@ -8,7 +8,8 @@ def replace_pua_chars(text):
     替换 Unicode 私有区域字符（如 、、 等）
     范围：U+E000–U+F8FF
     """
-    return re.sub(r'[\uE000-\uF8FF]', '###', text)
+    return re.sub(r'[\uE000-\uF8FF]', '#', text)
+    # return re.sub(r'[\uE000-\uF8FF]', r'\g<0>#', text)
 
 def replace_control_chars(text):
     """

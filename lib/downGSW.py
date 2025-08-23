@@ -35,27 +35,36 @@ class Chapter:
             chapter_title = "".join(t.strip() for t in title_parts).strip()
             if not chapter_title:
                 chapter_title = self.title
-            print(chapter_title)
+   
             # 2. 提取段落节点和文本
             p_nodes = tree.xpath('//div[@class="contson"]/p')
+            titleTree = tree.xpath('//div[@class="contson"]/p/strong/text()')
+
+
             paragraphs = []
             for p in p_nodes:
                 text = "".join(p.xpath(".//text()")).strip()
-                if text:
+                textTitle = "".join(p.xpath(".//strong/text()")).strip()
+                if textTitle:
+                    textTitle = clean_text(text)  # 每段都清洗
+                    paragraphs.append({"content": textTitle, "type": "title"})
+                elif text:
                     text = clean_text(text)  # 每段都清洗
-                    paragraphs.append(text)
+                    paragraphs.append({"content": text, "type": "text"})
 
             # 3. 判断第一个段落是否包含 <strong>，如是则拼接到标题
             combined_title = chapter_title
-            if paragraphs and p_nodes:
-                first_p = p_nodes[0]
-                strong_texts = first_p.xpath(".//strong//text()")
-                # strong_texts = first_p.xpath(".//text()")
-                if strong_texts:
-                    subtitle = "".join(s.strip() for s in strong_texts)
-                    combined_title = f"{chapter_title} {subtitle}"
-                    # 移除已合并的首段
-                    paragraphs.pop(0)
+            # 只有一个标题
+            if len(titleTree) == 1:
+                if paragraphs and p_nodes:
+                    first_p = p_nodes[0]
+                    strong_texts = first_p.xpath(".//strong//text()")
+                    # strong_texts = first_p.xpath(".//text()")
+                    if strong_texts:
+                        subtitle = "".join(s.strip() for s in strong_texts)
+                        combined_title = f"{chapter_title} {subtitle}"
+                        # 移除已合并的首段
+                        paragraphs.pop(0)
 
             print(f"✅ 已抓取：{combined_title}")
             return combined_title, paragraphs
@@ -73,6 +82,8 @@ def down(title, url):
     """
     chap = Chapter(title, url)
     content = chap.fetch()
+    # print("content")
+    # print(content)
     ALL_CONTENT.append(content)
     return content  # 可选返回，用于调试
 
