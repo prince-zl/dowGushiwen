@@ -20,6 +20,7 @@ class Chapter:
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
             "Connection": "keep-alive",
         }
+        self.line0SetTitle = False #设置第0行到标题,处理特别格式
 
     def fetch(self):
         """抓取本章内容，返回 (combined_title, paragraphs)"""
@@ -35,11 +36,10 @@ class Chapter:
             chapter_title = "".join(t.strip() for t in title_parts).strip()
             if not chapter_title:
                 chapter_title = self.title
-   
+
             # 2. 提取段落节点和文本
             p_nodes = tree.xpath('//div[@class="contson"]/p')
             titleTree = tree.xpath('//div[@class="contson"]/p/strong/text()')
-
 
             paragraphs = []
             for p in p_nodes:
@@ -55,11 +55,12 @@ class Chapter:
             # 3. 判断第一个段落是否包含 <strong>，如是则拼接到标题
             combined_title = chapter_title
             # 只有一个标题
-            if len(titleTree) == 1:
+            if len(titleTree) == 1 or self.line0SetTitle:
                 if paragraphs and p_nodes:
                     first_p = p_nodes[0]
                     strong_texts = first_p.xpath(".//strong//text()")
-                    # strong_texts = first_p.xpath(".//text()")
+                    if self.line0SetTitle :
+                        strong_texts = first_p.xpath(".//text()")     
                     if strong_texts:
                         subtitle = "".join(s.strip() for s in strong_texts)
                         combined_title = f"{chapter_title} {subtitle}"

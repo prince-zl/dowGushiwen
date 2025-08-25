@@ -95,7 +95,7 @@ class down:
         for idx, item in enumerate(articles):
             print(f"[{idx+1:2d}/{len(articles)}] {item['title']}")
             downGSW.down(item["title"], item["link"])
-            time.sleep(random.uniform(2.0, 4.0))  # 防爬延迟 2-4s之间
+            time.sleep(random.uniform(2, 4))  # 防爬延迟 2-4s之间
 
         # 合并保存
         all_content = downGSW.get_all_content()
